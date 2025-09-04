@@ -1,0 +1,649 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Gesture Painter Pro</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+    
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      overflow: hidden;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      font-family: 'Inter', sans-serif;
+      position: relative;
+    }
+    canvas {
+     cursor: url('resize-diagonal.svg'), auto;
+    }
+
+    /* Animated background particles */
+    body::before {
+      content: '';
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background-image: 
+        radial-gradient(circle at 20% 50%, rgba(120, 119, 198, 0.3) 0%, transparent 50%),
+        radial-gradient(circle at 80% 20%, rgba(255, 255, 255, 0.1) 0%, transparent 50%),
+        radial-gradient(circle at 40% 80%, rgba(120, 119, 198, 0.2) 0%, transparent 50%);
+      animation: float 20s ease-in-out infinite;
+      z-index: -1;
+    }
+
+    @keyframes float {
+      0%, 100% { transform: translateY(0px) rotate(0deg); }
+      33% { transform: translateY(-20px) rotate(1deg); }
+      66% { transform: translateY(-10px) rotate(-1deg); }
+    }
+
+    canvas {
+      image-rendering: pixelated;
+    }
+
+    #video {
+      transform: scaleX(-1);
+      position: fixed;
+      bottom: 20px;
+      right: 20px;
+      width: 300px;
+      z-index: 5;
+      border-radius: 16px;
+      box-shadow: 0 10px 40px rgba(0,0,0,0.3);
+      border: 3px solid rgba(255, 255, 255, 0.2);
+      backdrop-filter: blur(10px);
+      transition: all 0.3s ease;
+    }
+
+    #video:hover {
+      transform: scaleX(-1) scale(1.05);
+      box-shadow: 0 15px 50px rgba(0,0,0,0.4);
+    }
+
+    #canvas {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      z-index: 1;
+      border-radius: 0;
+    }
+
+    #virtualCursor {
+      position: absolute;
+      width: 24px;
+      height: 24px;
+      background: linear-gradient(45deg, #ff6b6b, #4ecdc4);
+      border-radius: 50%;
+      pointer-events: none;
+      z-index: 1000;
+      box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+      animation: pulse 2s infinite;
+    }
+
+    @keyframes pulse {
+      0% { transform: scale(1); }
+      50% { transform: scale(1.1); }
+      100% { transform: scale(1); }
+    }
+
+    #toolbar {
+      position: fixed;
+      top: 20px;
+      left: 9%;
+      transform: translateX(-50%);
+      display: flex;
+      align-items: center;
+      background: rgba(255, 255, 255, 0.95);
+      backdrop-filter: blur(20px);
+      padding: 10px ;
+      border-radius: 20px;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.15);
+      z-index: 1000;
+      gap: 10px;
+      width: 90%;
+      max-width: 1200px;
+      border: 1px solid rgba(255, 255, 255, 0.3);
+      transition: all 0.3s ease;
+    }
+
+    #toolbar:hover {
+      box-shadow: 0 12px 40px rgba(0,0,0,0.2);
+      transform: translateX(-50%) translateY(-2px);
+    }
+
+    .section {
+      display: flex;
+      align-items: center;
+      gap: 15px;
+      position: relative;
+      padding: 10px 15px;
+      border-radius: 12px;
+      transition: all 0.3s ease;
+    }
+
+    .section:hover {
+      background: rgba(255, 255, 255, 0.5);
+    }
+
+    .label {
+      font-size: 14px;
+      font-weight: 600;
+      color: #2c3e50;
+      text-shadow: 0 1px 2px rgba(0,0,0,0.1);
+      letter-spacing: 0.5px;
+    }
+
+    #colorPalette, #extraColors {
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+
+    .color-btn {
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      border: 3px solid rgba(255, 255, 255, 0.8);
+      cursor: pointer;
+      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      position: relative;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    }
+
+    .color-btn::before {
+      content: '';
+      position: absolute;
+      top: -2px;
+      left: -2px;
+      right: -2px;
+      bottom: -2px;
+      border-radius: 50%;
+      background: linear-gradient(45deg, transparent, rgba(255,255,255,0.3));
+      opacity: 0;
+      transition: opacity 0.3s ease;
+    }
+
+    .color-btn:hover::before {
+      opacity: 1;
+    }
+
+    .color-btn:hover {
+      transform: scale(1.15) rotate(5deg);
+      box-shadow: 0 6px 20px rgba(0,0,0,0.25);
+    }
+
+    .color-btn.selected {
+      border: 4px solid #2c3e50;
+      transform: scale(1.2);
+      box-shadow: 0 6px 20px rgba(0,0,0,0.3);
+    }
+
+    .color-btn.selected::after {
+      content: '✓';
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      color: white;
+      font-weight: bold;
+      font-size: 12px;
+      text-shadow: 0 1px 2px rgba(0,0,0,0.5);
+    }
+
+    #extraColors {
+      display: none;
+      position: absolute;
+      top: 65px;
+      left: 0;
+      background: rgba(255, 255, 255, 0.95);
+      backdrop-filter: blur(20px);
+      padding: 15px;
+      border-radius: 16px;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.2);
+      z-index: 100;
+      border: 1px solid rgba(255, 255, 255, 0.3);
+      animation: slideIn 0.3s ease;
+    }
+
+    @keyframes slideIn {
+      from { opacity: 0; transform: translateY(-10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    #shapeToolbar {
+      position: fixed;
+      top: 30%;
+      left: 20px;
+      transform: translateY(-50%);
+      display: flex;
+      flex-direction: column;
+      gap: 15px;
+      background: rgba(255, 255, 255, 0.95);
+      backdrop-filter: blur(20px);
+      padding: 20px 15px;
+      border-radius: 20px;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.15);
+      z-index: 1001;
+      border: 1px solid rgba(255, 255, 255, 0.3);
+      transition: all 0.3s ease;
+    }
+
+    #shapeToolbar:hover {
+      box-shadow: 0 12px 40px rgba(0,0,0,0.2);
+      transform: translateY(-50%) translateX(5px);
+    }
+
+    .shape-btn {
+      width: 48px;
+      height: 48px;
+      font-size: 20px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: linear-gradient(145deg, #f0f0f0, #e6e6e6);
+      border: 2px solid rgba(255, 255, 255, 0.5);
+      border-radius: 12px;
+      cursor: pointer;
+      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .shape-btn::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: -100%;
+      width: 100%;
+      height: 100%;
+      background: linear-gradient(90deg, transparent, rgba(255,255,255,0.6), transparent);
+      transition: left 0.5s ease;
+    }
+
+    .shape-btn:hover::before {
+      left: 100%;
+    }
+
+    .shape-btn:hover {
+      background: linear-gradient(145deg, #667eea, #764ba2);
+      color: white;
+      transform: scale(1.1) rotate(5deg);
+      box-shadow: 0 8px 25px rgba(0,0,0,0.3);
+    }
+
+    .shape-btn.selected {
+      background: linear-gradient(145deg, #667eea, #764ba2);
+      color: white;
+      border-color: #2c3e50;
+      transform: scale(1.05);
+      box-shadow: 0 6px 20px rgba(0,0,0,0.25);
+    }
+
+    #extraShapes {
+      display: none;
+      flex-direction: column;
+      position: absolute;
+      left: 75px;
+      top: 0;
+      background: rgba(255, 255, 255, 0.95);
+      backdrop-filter: blur(20px);
+      padding: 15px;
+      border-radius: 16px;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.2);
+      z-index: 100;
+      border: 1px solid rgba(255, 255, 255, 0.3);
+      animation: slideInRight 0.3s ease;
+    }
+
+    @keyframes slideInRight {
+      from { opacity: 0; transform: translateX(-10px); }
+      to { opacity: 1; transform: translateX(0); }
+    }
+
+    .toggle-btn {
+      background: linear-gradient(145deg, #f8f9fa, #e9ecef);
+      border: 2px solid rgba(255, 255, 255, 0.5);
+      padding: 8px 16px;
+      font-size: 12px;
+      font-weight: 500;
+      border-radius: 10px;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .toggle-btn::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: -100%;
+      width: 100%;
+      height: 100%;
+      background: linear-gradient(90deg, transparent, rgba(255,255,255,0.4), transparent);
+      transition: left 0.5s ease;
+    }
+
+    .toggle-btn:hover::before {
+      left: 100%;
+    }
+
+    .toggle-btn:hover {
+      background: linear-gradient(145deg, #667eea, #764ba2);
+      color: white;
+      transform: translateY(-2px);
+      box-shadow: 0 6px 20px rgba(0,0,0,0.2);
+    }
+
+    #brushControl {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 10px;
+      padding: 15px;
+      background: rgba(255, 255, 255, 0.1);
+      border-radius: 12px;
+      backdrop-filter: blur(10px);
+    }
+
+    #brushSize {
+      width: 120px;
+      height: 8px;
+      border-radius: 4px;
+      background: linear-gradient(to right, #667eea, #764ba2);
+      outline: none;
+      cursor: pointer;
+      transition: all 0.3s ease;
+    }
+
+    #brushSize:hover {
+      transform: scale(1.05);
+    }
+
+    #brushSize::-webkit-slider-thumb {
+      appearance: none;
+      width: 20px;
+      height: 20px;
+      border-radius: 50%;
+      background: white;
+      cursor: pointer;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+      transition: all 0.3s ease;
+    }
+
+    #brushSize::-webkit-slider-thumb:hover {
+      transform: scale(1.2);
+      box-shadow: 0 6px 20px rgba(0,0,0,0.4);
+    }
+
+    .tool-btn {
+      background: linear-gradient(145deg, #f8f9fa, #e9ecef);
+      border: 2px solid rgba(255, 255, 255, 0.5);
+      padding: 12px 20px;
+      font-size: 14px;
+      font-weight: 500;
+      border-radius: 12px;
+      cursor: pointer;
+      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      position: relative;
+      overflow: hidden;
+      white-space: nowrap;
+    }
+
+    .tool-btn::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: -100%;
+      width: 100%;
+      height: 100%;
+      background: linear-gradient(90deg, transparent, rgba(255,255,255,0.4), transparent);
+      transition: left 0.5s ease;
+    }
+
+    .tool-btn:hover::before {
+      left: 100%;
+    }
+
+    .tool-btn:hover {
+      background: linear-gradient(145deg, #667eea, #764ba2);
+      color: white;
+      transform: translateY(-2px) scale(1.05);
+      box-shadow: 0 8px 25px rgba(0,0,0,0.3);
+    }
+
+    .tool-btn:active {
+      transform: translateY(0) scale(0.98);
+    }
+
+    .tool-btn.active {
+      background: linear-gradient(145deg, #ff6b6b, #ee5a6f);
+      color: white;
+      box-shadow: 0 6px 20px rgba(0,0,0,0.25);
+    }
+
+    #eraserIcon {
+      position: absolute;
+      width: 32px;
+      height: 32px;
+      pointer-events: none;
+      display: none;
+      z-index: 1001;
+      filter: drop-shadow(0 4px 8px rgba(0,0,0,0.3));
+    }
+    .color-btn.hovered,.shape-btn.hovered {
+      transform: scale(1.2) rotate(5deg);
+      box-shadow: 0 8px 25px rgba(0, 0, 0, 0.4);
+      transition: transform 0.2s ease, box-shadow 0.2s ease;
+    }
+    /* Highlight when virtual cursor hovers over buttons */
+    /* Hover effect on toolbar buttons via virtual cursor */
+    .tool-btn.hovered-tool {
+      background: linear-gradient(145deg, #2980b9, #2471a3);
+      color: white;
+      transform: scale(1.05);
+      border: 2px solid #1b4f72;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.25);
+      transition: all 0.2s ease-in-out;
+    }
+        .shape-hover-indicator {
+      position: absolute;
+      width: 100px;
+      height: 100px;
+      border: 3px solid rgba(255, 255, 255, 0.4);
+      border-top-color: #00aaff;
+      border-radius: 50%;
+      animation: hoverSpin 3s linear forwards;
+      pointer-events: none;
+      z-index: 999;
+    }
+
+    @keyframes hoverSpin {
+      from { transform: rotate(0deg); }
+      to { transform: rotate(360deg); }
+    }
+
+
+
+    /* Responsive Design */
+    @media (max-width: 768px) {
+      #toolbar {
+        width: 95%;
+        padding: 15px 20px;
+        gap: 20px;
+        flex-wrap: wrap;
+      }
+
+      .section {
+        gap: 10px;
+        padding: 8px 10px;
+      }
+
+      .color-btn {
+        width: 28px;
+        height: 28px;
+      }
+
+      .shape-btn {
+        width: 40px;
+        height: 40px;
+        font-size: 18px;
+      }
+
+      #video {
+        width: 250px;
+        bottom: 15px;
+        right: 15px;
+      }
+
+      #shapeToolbar {
+        left: 15px;
+        padding: 15px 10px;
+      }
+    }
+
+    /* Glassmorphism effect for floating elements */
+    .glass {
+      background: rgba(255, 255, 255, 0.1);
+      backdrop-filter: blur(10px);
+      border: 1px solid rgba(255, 255, 255, 0.2);
+    }
+
+    /* Subtle animations for better UX */
+    .animate-in {
+      animation: fadeInUp 0.5s ease forwards;
+    }
+
+    @keyframes fadeInUp {
+      from {
+        opacity: 0;
+        transform: translateY(20px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    /* Enhanced focus states for accessibility */
+    .color-btn:focus,
+    .shape-btn:focus,
+    .tool-btn:focus,
+    .toggle-btn:focus {
+      outline: 3px solid rgba(102, 126, 234, 0.6);
+      outline-offset: 2px;
+    }
+
+    /* Loading animation */
+    .loading {
+      position: relative;
+      overflow: hidden;
+    }
+
+    .loading::after {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: -100%;
+      width: 100%;
+      height: 100%;
+      background: linear-gradient(90deg, transparent, rgba(255,255,255,0.4), transparent);
+      animation: shimmer 2s infinite;
+    }
+
+    @keyframes shimmer {
+      0% { left: -100%; }
+      100% { left: 100%; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Virtual Cursor -->
+  <div id="virtualCursor"></div>
+  <img id="eraserIcon" src="/static/eraser.png" alt="Eraser" style="
+    position: absolute;
+    width: 32px;
+    height: 32px;
+    pointer-events: none;
+    display: none;
+    z-index: 1001;
+    filter: drop-shadow(0 4px 8px rgba(0,0,0,0.3));
+  ">
+
+  <!-- Camera Feed -->
+  <img id="video" src="{{ url_for('video') }}" alt="Camera Feed" class="animate-in">
+
+  <!-- Drawing Canvas -->
+  <canvas id="canvas"></canvas>
+  
+  <!-- Toolbar (Top) -->
+  <div id="toolbar" class="animate-in">
+    <!-- Color Selection -->
+    <div class="section">
+      <span class="label">🎨 Colors</span>
+      <div id="colorPalette">
+        <div class="color-btn selected" style="background: linear-gradient(45deg, #ff6b6b, #ff5252)" data-color="red"></div>
+        <div class="color-btn" style="background: linear-gradient(45deg, #4fc3f7, #2196f3)" data-color="blue"></div>
+        <div class="color-btn" style="background: linear-gradient(45deg, #66bb6a, #4caf50)" data-color="green"></div>
+        <div class="color-btn" style="background: linear-gradient(45deg, #424242, #212121)" data-color="black"></div>
+        <div class="color-btn" style="background: linear-gradient(45deg, #ffa726, #ff9800)" data-color="orange"></div>
+      </div>
+      <button class="toggle-btn" onclick="toggleColors()">+ More Colors</button>
+      <div id="extraColors">
+        <div class="color-btn" style="background: linear-gradient(45deg, #8d6e63, #6d4c41)" data-color="brown"></div>
+        <div class="color-btn" style="background: linear-gradient(45deg, #4dd0e1, #00bcd4)" data-color="cyan"></div>
+        <div class="color-btn" style="background: linear-gradient(45deg, #90a4ae, #607d8b)" data-color="gray"></div>
+        <div class="color-btn" style="background: linear-gradient(45deg, #ffd54f, #ffc107)" data-color="gold"></div>
+        <div class="color-btn" style="background: linear-gradient(45deg, #4db6ac, #009688)" data-color="teal"></div>
+      </div>
+    </div>
+
+    <!-- Brush Control -->
+    <div class="section" id="brushControl">
+      <span class="label">🖌️ Brush Size</span>
+      <input type="range" id="brushSize" min="1" max="40" value="5">
+    </div>
+
+    <!-- Tool Buttons -->
+    <div class="section">
+      <button id="eraserBtn" class="tool-btn">🧽 Eraser</button>
+      <button id="saveBtn" class="tool-btn">💾 Save</button>
+    </div>
+
+    <!-- Action Buttons -->
+    <div class="section">
+      <button id="undoBtn" class="tool-btn">↶ Undo</button>
+      <button id="redoBtn" class="tool-btn">↷ Redo</button>
+      <button id="deleteBtn" class="tool-btn">🗑️ Clear</button>
+    </div>
+  </div>
+
+  <!-- Shape Toolbar (Left) -->
+  <div id="shapeToolbar" class="animate-in">
+    <button class="shape-btn selected" data-shape="free">✏️</button>
+    <div class="shape-btn" data-shape="line">📏</div>
+    <div class="shape-btn" data-shape="rectangle">⬛</div>
+    <div class="shape-btn" data-shape="circle">⚪</div>
+    <div class="shape-btn" data-shape="triangle">🔺</div>
+    <button class="toggle-btn" onclick="toggleShapes()">+ More</button>
+    <div id="extraShapes">
+      <div class="shape-btn" data-shape="ellipse">🔵</div>
+      <div class="shape-btn" data-shape="pentagon">🔷</div>
+      <div class="shape-btn" data-shape="star">⭐</div>
+    </div>
+  </div>
+  <div id="shapeHoverIndicator" class="shape-hover-indicator" style="display: none;"></div>
+
+  <!-- JavaScript -->
+  <script defer src="{{ url_for('static', filename='script.js') }}"></script>
+</body>
+</html>
